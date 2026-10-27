@@ -1,0 +1,42 @@
+name: Build IPA on macOS Cloud
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_url:
+        description: 'Direct Download Link to NSP/XCI Game File'
+        required: true
+        type: string
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Prerequisites
+        run: |
+          brew install xcodegen zstd glslang
+          brew install --cask dotnet-sdk
+          python3 -m pip install lz4 capstone fonttools "backports.zstd; python_version < '3.14'"
+
+      - name: Write prod.keys
+        run: |
+          mkdir -p ~/.switch
+          echo "${{ secrets.PROD_KEYS }}" > ~/.switch/prod.keys
+
+      - name: Download Game File
+        run: |
+          mkdir -p ~/Games/InputGame
+          curl -L "${{ inputs.game_url }}" -o ~/Games/InputGame/game.nsp
+
+      - name: Run Build Script
+        run: |
+          python3 scripts/build_ipa_from_nsp.py ~/Games/InputGame -k ~/.switch/prod.keys
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-game-ipa
+          path: ~/Games/InputGame/*.ipa
